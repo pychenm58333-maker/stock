@@ -7,7 +7,8 @@ from datetime import datetime
 # 從系統環境變數讀取 Webhook (為了安全)
 DISCORD_WEBHOOK_URL = os.getenv('DISCORD_WEBHOOK')
 # 這裡的標的我會每天 14:00 提供清單給您，您可以手動更新此陣列
-TARGET_STOCKS = ["3481.TW", "2610.TW", "2014.TW", "1314.TW", "3624.TW"]
+# 根據 2026/01/13 最新收盤數據更新
+TARGET_STOCKS = ["2409.TW", "8105.TW", "2014.TW", "3494.TW", "1314.TW"]
 ENTRY_RATIO = 0.985  # 便宜價定義
 
 def send_to_discord(title, fields):
