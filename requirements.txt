@@ -1,1 +1,3 @@
-yfinance、requests、pandas
+yfinance
+requests
+pandas
