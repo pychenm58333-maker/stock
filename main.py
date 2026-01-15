@@ -4,43 +4,84 @@ import json
 import os
 from datetime import datetime
 
-# 從系統環境變數讀取 Webhook (為了安全)
+# --- 配置區 ---
 DISCORD_WEBHOOK_URL = os.getenv('DISCORD_WEBHOOK')
-# 這裡的標的我會每天 14:00 提供清單給您，您可以手動更新此陣列
-# 根據 2026/01/13 最新收盤數據更新
-TARGET_STOCKS = ["2409.TW", "8105.TW", "2014.TW", "3494.TW", "1314.TW"]
-ENTRY_RATIO = 0.985  # 便宜價定義
 
-def send_to_discord(title, fields):
-    payload = {
-        "embeds": [{
-            "title": title,
-            "color": 3066993,
-            "fields": fields,
-            "footer": {"text": f"監測時間: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"}
-        }]
-    }
-    requests.post(DISCORD_WEBHOOK_URL, data=json.dumps(payload), headers={"Content-Type":"application/json"})
+# 預設監控的熱門候選池 (涵蓋面板、鋼鐵、塑化等低價族群)
+CANDIDATE_POOL = [
+    "2409.TW", "3494.TW", "8105.TW", "2014.TW", "1314.TW", 
+    "2610.TW", "2883.TW", "6116.TW", "3481.TW", "2323.TW"
+]
 
-def run_monitor():
-    print("啟動雲端監控...")
-    for stock in TARGET_STOCKS:
-        ticker = yf.Ticker(stock)
-        df = ticker.history(period="1d", interval="1m")
-        if df.empty: continue
-        
-        open_p = df['Open'].iloc[0]
-        current_p = df['Close'].iloc[-1]
-        cheap_p = round(open_p * ENTRY_RATIO, 2)
-        
-        if current_p <= cheap_p:
-            fields = [
-                {"name": "標的", "value": stock, "inline": True},
-                {"name": "開盤價", "value": str(open_p), "inline": True},
-                {"name": "當前便宜價", "value": f"**{current_p}**", "inline": True},
-                {"name": "建議賣出價", "value": f"**{round(current_p * 1.02, 2)}**", "inline": False}
-            ]
-            send_to_discord("🎯 雲端當沖信號觸發", fields)
+def get_dynamic_targets():
+    """自動從候選池中篩選出符合 20 元以下的標的"""
+    targets = {}
+    print("正在掃描市場標的...")
+    for sid in CANDIDATE_POOL:
+        try:
+            t = yf.Ticker(sid)
+            # 抓取最新收盤價進行過濾
+            fast_info = t.basic_metadata
+            current_price = fast_info.get('last_price') or t.history(period="1d")['Close'].iloc[-1]
+            
+            # 核心邏輯：只取 20 元以下
+            if current_price and current_price <= 20.0:
+                # 獲取中文名稱 (若無則顯示代碼)
+                name = t.info.get('shortName', sid)
+                targets[sid] = name
+            
+            if len(targets) >= 5: break # 取前 5 名最符合條件的標的
+        except:
+            continue
+    return targets
+
+def monitor_stocks():
+    stock_map = get_dynamic_targets()
+    if not stock_map:
+        print("未發現符合 20 元以下之標的")
+        return
+
+    print(f"今日監控標的: {list(stock_map.values())}")
+    
+    for stock_id, stock_name in stock_map.items():
+        try:
+            ticker = yf.Ticker(stock_id)
+            df = ticker.history(period="1d", interval="1m")
+            if df.empty: continue
+
+            # 數據精確化處理
+            open_p = round(df['Open'].iloc[0], 2)
+            current_p = round(df['Close'].iloc[-1], 2)
+            cheap_p = round(open_p * 0.985, 2)  # 1.5% 便宜價
+            exit_p = round(current_p * 1.025, 2) # 2.5% 停利點
+
+            # 觸發條件檢查
+            if current_p <= cheap_p:
+                # Discord 表格美化格式
+                table = (
+                    f"```\n"
+                    f"項目       | 數值\n"
+                    f"-----------|-----------\n"
+                    f"股票名稱   | {stock_name}\n"
+                    f"標的代碼   | {stock_id}\n"
+                    f"今日開盤   | {open_p}\n"
+                    f"觸發買入   | {current_p}\n"
+                    f"建議停利   | {exit_p}\n"
+                    f"```"
+                )
+                
+                payload = {
+                    "embeds": [{
+                        "title": "🎯 雲端當沖信號觸發",
+                        "description": table,
+                        "color": 15158332, # 紅色提醒
+                        "footer": {"text": f"監測時間: {datetime.now().strftime('%H:%M:%S')}"}
+                    }]
+                }
+                requests.post(DISCORD_WEBHOOK_URL, json=payload)
+                
+        except Exception as e:
+            print(f"監控錯誤 {stock_id}: {e}")
 
 if __name__ == "__main__":
-    run_monitor()
+    monitor_stocks()
