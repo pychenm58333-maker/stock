@@ -2,7 +2,8 @@ name: TW Stock Auto Monitor
 
 on:
   schedule:
-    - cron: '10 1 * * 1-5' # 台灣時間 09:10
+    - cron: '0 0 * * 1-5'   # [新增] 台灣時間 08:00 (發送盤前戰報)
+    - cron: '10 1 * * 1-5'  # [維持] 台灣時間 09:10 (執行盤中監測)
   workflow_dispatch:
 
 jobs:
@@ -15,7 +16,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.10' # 這裡改為 3.10 以修復 TypeError
+          python-version: '3.10'
 
       - name: Install Dependencies
         run: |
@@ -24,4 +25,5 @@ jobs:
       - name: Execute Monitor
         env:
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
-        run: python main.py # 確保 main.py 已移至根目錄
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+        run: python main.py
