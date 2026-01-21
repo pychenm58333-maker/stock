@@ -98,16 +98,23 @@ def send_discord_monitor(index, name, sid, open_p, current_p, cheap_p, exit_p, c
 def monitor_stocks():
     tw_time = get_current_tw_time()
     hour = tw_time.hour
+    
     stock_map = get_mixed_stock_list()
 
-    # A: 14:00 收盤模式
-    if hour == 14:
+    # --- 修改後的判定邏輯 ---
+    
+    # A: 14:00 以後的收盤模式 (只要是 14:00 之後啟動，且當天還沒發過)
+    # 我們將範圍改為 14 點到 16 點之間啟動都執行收盤評估
+    if 14 <= hour < 16:
+        print(f"目前時間 {tw_time.strftime('%H:%M')}, 執行收盤評估模式...")
         send_discord_after_market(stock_map)
         return
-    # B: 09:00 前 盤前模式
+
+    # B: 09:00 前的盤前模式
     if hour < 9:
         send_discord_pre_market(stock_map, get_adr_status())
         return
+        
     # C: 盤中監測
     for i, (sid, name) in enumerate(stock_map.items(), 1):
         try:
